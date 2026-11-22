@@ -165,8 +165,10 @@ browser ── https://chat.example.com ──> zeroclaw-ui container (nginx)
   parameters arrive in the URL fragment (kept in `sessionStorage` for reloads, then removed
   from the address because they carry Telegram's signed data about the person, which
   nothing here uses). Sign-in stays ZeroClaw's pairing code: do not turn Telegram's signed
-  data into a login without a server-side check that holds the bot token. nginx refuses
-  framing, so Telegram Web (an iframe) cannot open it; the phone and desktop apps can.
+  data into a login without a server-side check that holds the bot token. Telegram Web shows the page in a frame and speaks through `postMessage`: nginx
+  allows framing only by the sites in `ZEROCLAW_FRAME_ANCESTORS` (nobody by default), and
+  messages are accepted from and sent to `https://web.telegram.org` only. Never widen
+  either to `*`.
   The menu button that opens it is set on the bot through Telegram's API, not by this repo.
 
 ## Commands

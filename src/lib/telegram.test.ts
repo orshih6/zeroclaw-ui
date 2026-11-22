@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isDark, parseLaunch, toHex } from "./telegram";
+import { isDark, parseLaunch, toHex, webEvent } from "./telegram";
 
 describe("parseLaunch", () => {
   it("reads what Telegram puts in the fragment", () => {
@@ -47,5 +47,24 @@ describe("toHex", () => {
     expect(toHex("rgb(28 27 25)")).toBe("#1c1b19");
     expect(toHex("rgba(0, 0, 0, 0.5)")).toBe("#000000");
     expect(toHex("var(--bg)")).toBeNull();
+  });
+});
+
+describe("webEvent", () => {
+  const msg = JSON.stringify({ eventType: "back_button_pressed", eventData: { a: 1 } });
+
+  it("reads an event sent by Telegram Web", () => {
+    expect(webEvent("https://web.telegram.org", msg)).toEqual({
+      type: "back_button_pressed",
+      data: { a: 1 },
+    });
+  });
+
+  it("ignores every other site, and anything that is not an event", () => {
+    expect(webEvent("https://evil.example", msg)).toBeNull();
+    expect(webEvent("https://web.telegram.org.evil.example", msg)).toBeNull();
+    expect(webEvent("https://web.telegram.org", { eventType: "x" })).toBeNull();
+    expect(webEvent("https://web.telegram.org", "not json")).toBeNull();
+    expect(webEvent("https://web.telegram.org", JSON.stringify({ nope: 1 }))).toBeNull();
   });
 });

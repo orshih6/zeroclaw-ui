@@ -14,9 +14,10 @@ server {
   client_max_body_size 25m;   # image uploads
 
   add_header X-Content-Type-Options nosniff always;
-  add_header X-Frame-Options DENY always;
+  # Who may show this page in a frame is frame-ancestors below (ZEROCLAW_FRAME_ANCESTORS,
+  # nobody by default). X-Frame-Options is not sent: it cannot name an allowed site.
   add_header Referrer-Policy no-referrer always;
-  add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://$host; frame-ancestors 'none'; base-uri 'none'" always;
+  add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://$host; frame-ancestors ${ZEROCLAW_FRAME_ANCESTORS}; base-uri 'none'" always;
 
   location = /healthz {
     access_log off;
@@ -65,9 +66,8 @@ server {
   location / {
     add_header Cache-Control "no-cache";
     add_header X-Content-Type-Options nosniff always;
-    add_header X-Frame-Options DENY always;
     add_header Referrer-Policy no-referrer always;
-    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://$host; frame-ancestors 'none'; base-uri 'none'" always;
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://$host; frame-ancestors ${ZEROCLAW_FRAME_ANCESTORS}; base-uri 'none'" always;
     try_files $uri /index.html;
   }
 }

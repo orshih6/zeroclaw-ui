@@ -6,7 +6,9 @@
 // paired browser holds a token with full control of the agent, so no third-party script
 // runs on this page (the CSP allows none). The protocol is small: Telegram puts its launch
 // parameters in the URL fragment, takes events through a function it injects, and calls a
-// function we define with its own events.
+// function we define with its own events. Telegram Web is the exception: it shows the page
+// in a frame and both directions are window messages, accepted from and sent to
+// web.telegram.org only.
 //
 // Sign-in is unchanged: ZeroClaw's pairing code, once, inside Telegram. Telegram's signed
 // launch data is not used for anything and is removed from the address.
@@ -73,13 +75,31 @@ let launch: Launch | null = null;
 let onThemeChange: (() => void) | null = null;
 const backHandlers = new Set<() => void>();
 
+/** Telegram Web shows a Mini App in a frame and talks to it with messages. */
+const TELEGRAM_WEB = "https://web.telegram.org";
+const framed = () => window.parent !== window;
+
 function post(type: string, data: Record<string, unknown> = {}) {
   const w = window as unknown as Bridge;
   try {
     if (w.TelegramWebviewProxy) w.TelegramWebviewProxy.postEvent(type, JSON.stringify(data));
     else if (w.external?.notify) w.external.notify(JSON.stringify({ eventType: type, eventData: data }));
+    // Only ever to Telegram Web: another site that framed the page learns nothing.
+    else if (framed())
+      window.parent.postMessage(JSON.stringify({ eventType: type, eventData: data }), TELEGRAM_WEB);
   } catch {
     // an older Telegram that does not know this event
+  }
+}
+
+/** A message from Telegram Web, as the event it carries; null for anything else. */
+export function webEvent(origin: string, data: unknown): { type: string; data: unknown } | null {
+  if (origin !== TELEGRAM_WEB || typeof data !== "string") return null;
+  try {
+    const m = JSON.parse(data);
+    return m && typeof m.eventType === "string" ? { type: m.eventType, data: m.eventData } : null;
+  } catch {
+    return null;
   }
 }
 
@@ -138,6 +158,15 @@ export function initTelegram(themeChanged: () => void) {
   w.Telegram = { WebView: { receiveEvent: receive } }; // iOS, Android, macOS
   w.TelegramGameProxy = { receiveEvent: receive }; // Telegram Desktop
   w.TelegramGameProxy_receiveEvent = receive; // Windows Phone, kept for old clients
+  if (framed()) {
+    // Telegram Web
+    window.addEventListener("message", (e) => {
+      const ev = webEvent(e.origin, e.data);
+      if (ev?.type === "reload_iframe") window.location.reload();
+      else if (ev) receive(ev.type, ev.data);
+    });
+    post("iframe_ready", { reload_supported: true });
+  }
   document.documentElement.dataset.telegram = launch.platform || "yes";
 
   post("web_app_ready");
@@ -149,7 +178,7 @@ export function initTelegram(themeChanged: () => void) {
 
 function hasBridge(): boolean {
   const w = window as unknown as Bridge;
-  return Boolean(w.TelegramWebviewProxy || w.external?.notify);
+  return Boolean(w.TelegramWebviewProxy || w.external?.notify || framed());
 }
 
 export function inTelegram(): boolean {

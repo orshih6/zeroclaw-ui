@@ -19,6 +19,9 @@ FROM nginxinc/nginx-unprivileged:1.29-alpine
 ENV ZEROCLAW_UPSTREAM=zeroclaw.zeroclaw.svc.cluster.local:42617
 # NGINX_LOCAL_RESOLVERS is taken from /etc/resolv.conf by the image's entrypoint.
 ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+# Sites allowed to show the page in a frame (CSP frame-ancestors). Nobody by default; set
+# it to https://web.telegram.org to open the page as a Mini App in Telegram Web.
+ENV ZEROCLAW_FRAME_ANCESTORS="'none'"
 ENV NGINX_ENVSUBST_FILTER="ZEROCLAW_|NGINX_LOCAL_RESOLVERS"
 COPY deploy/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html

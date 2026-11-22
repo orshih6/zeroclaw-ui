@@ -70,6 +70,7 @@ docker run -p 8080:8080 -e ZEROCLAW_UPSTREAM=<zeroclaw-host>:42617 zeroclaw-ui
 | Setting | When | What it is |
 |---|---|---|
 | `ZEROCLAW_UPSTREAM` | container start | `host:port` of the ZeroClaw gateway. Default `zeroclaw.zeroclaw.svc.cluster.local:42617` |
+| `ZEROCLAW_FRAME_ANCESTORS` | container start | Sites allowed to show the page in a frame. Default `'none'`; `https://web.telegram.org` for Telegram Web |
 | `VITE_DASHBOARD_URL` | build (`--build-arg`) | Optional. Address of ZeroClaw's own dashboard; Settings links to it |
 
 Whatever sits in front (a reverse proxy, an ingress) must allow WebSockets and requests that
@@ -92,8 +93,12 @@ or dark theme (when the theme setting is "system"), uses Telegram's Back button,
 be swiped closed while you scroll a chat. Sign-in is the same pairing code, entered once
 inside Telegram; Telegram's own sign-in data is not used.
 
-It works in Telegram's phone and desktop apps. It does not work in Telegram Web, which
-shows Mini Apps in a frame, and this page refuses to be framed.
+Telegram Web shows Mini Apps in a frame, and by default this page refuses to be framed by
+anyone. To use it there, start the container with
+`ZEROCLAW_FRAME_ANCESTORS=https://web.telegram.org`: only Telegram Web may then frame it.
+A browser keeps a framed page's sign-in apart from the site opened directly, so you pair
+once more inside Telegram Web; a browser set to block third-party storage forgets it when
+the frame closes.
 
 ## Develop
 
