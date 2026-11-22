@@ -1,0 +1,62 @@
+# Example routes for Gateway API: change the hostname, and the Gateway's name, namespace and
+# listener (sectionName) to yours. Everything goes to the zeroclaw-ui pod; its nginx passes
+# /api and /ws on to ZeroClaw inside the cluster. The HTTPS listener needs a certificate
+# for the hostname.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: zeroclaw-ui
+  namespace: zeroclaw
+spec:
+  parentRefs:
+    - name: web
+      namespace: default
+      kind: Gateway
+      group: gateway.networking.k8s.io
+      sectionName: https-zeroclaw-ui
+  hostnames:
+    - chat.example.com
+  rules:
+    - backendRefs:
+        - name: zeroclaw-ui
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: zeroclaw-ui-redirect
+  namespace: zeroclaw
+spec:
+  parentRefs:
+    - name: web
+      namespace: default
+      kind: Gateway
+      group: gateway.networking.k8s.io
+      sectionName: http
+  hostnames:
+    - chat.example.com
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+# Envoy Gateway only. The chat is a long-lived WebSocket and a turn can run for minutes;
+# Envoy's default 15 s route timeout would cut both. With another gateway or an Ingress,
+# raise its request and idle timeouts the same way.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: zeroclaw-ui-timeouts
+  namespace: zeroclaw
+spec:
+  timeout:
+    http:
+      requestTimeout: 0s
+      streamIdleTimeout: 3600s
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: zeroclaw-ui

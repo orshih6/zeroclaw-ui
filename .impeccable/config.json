@@ -1,0 +1,15 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": ["src/styles.css"],
+        "createdAt": "2026-11-21T17:02:21.747Z",
+        "reason": "Claude decided: line 183 is the Markdown blockquote rule (.prose-z blockquote), the standard quote bar in rendered answers, not a card accent"
+      }
+    ]
+  }
+}

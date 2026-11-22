@@ -1,0 +1,73 @@
+# Example: the page and its pass-through, next to a ZeroClaw whose Service is `zeroclaw` in
+# the namespace `zeroclaw`. No Secret, no volume, no token: ZeroClaw's pairing is the only
+# access check.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zeroclaw-ui
+  namespace: zeroclaw
+  labels:
+    app.kubernetes.io/name: zeroclaw-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zeroclaw-ui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zeroclaw-ui
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: zeroclaw-ui
+          image: ghcr.io/orshih6/zeroclaw-ui:latest # pin a sha-<commit> tag for real use
+          env:
+            # nginx passes /api and /ws here; it holds no token of its own.
+            - { name: ZEROCLAW_UPSTREAM, value: "zeroclaw.zeroclaw.svc.cluster.local:42617" }
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { cpu: 500m, memory: 96Mi }
+          volumeMounts:
+            # nginx writes its rendered config and temp files; nothing is kept.
+            - { name: conf, mountPath: /etc/nginx/conf.d }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: conf
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zeroclaw-ui
+  namespace: zeroclaw
+  labels:
+    app.kubernetes.io/name: zeroclaw-ui
+spec:
+  selector:
+    app.kubernetes.io/name: zeroclaw-ui
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

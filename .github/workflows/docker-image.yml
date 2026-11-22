@@ -1,0 +1,101 @@
+name: Build image
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "k8s/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
+  build:
+    needs: check
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          # Optional repository variable: address of ZeroClaw's own dashboard (Settings links to it).
+          build-args: |
+            VITE_DASHBOARD_URL=${{ vars.DASHBOARD_URL }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Optional deploy for a GitOps setup: point apps/zeroclaw-ui in a separate manifest repo at
+  # this build's sha- tag, so Argo CD (or Flux) rolls the Deployment. Runs only when the
+  # repository variable MANIFEST_REPO (owner/name) is set; it needs the secret
+  # MANIFEST_DEPLOY_KEY, a write deploy key on that repo. A fork without them skips this job.
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && vars.MANIFEST_REPO != ''
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-zeroclaw-ui
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.MANIFEST_REPO }}
+          ssh-key: ${{ secrets.MANIFEST_DEPLOY_KEY }}
+
+      - name: Point apps/zeroclaw-ui at this build
+        env:
+          SUBJECT: ${{ github.event.head_commit.message }} # via env, never spliced into the script
+          IMAGE: ghcr.io/${{ github.repository }}
+        run: |
+          cd apps/zeroclaw-ui
+          kustomize edit set image "${IMAGE}=${IMAGE}:sha-${GITHUB_SHA}"
+          git diff --quiet && { echo "already on sha-${GITHUB_SHA}"; exit 0; }
+          git config user.name "zeroclaw-ui-ci"
+          git config user.email "actions@github.com"
+          git commit -am "zeroclaw-ui: sha-${GITHUB_SHA::7} ($(printf '%s' "$SUBJECT" | head -1 | cut -c1-60))"
+          git push

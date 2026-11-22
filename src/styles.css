@@ -1,0 +1,463 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --bg: #f6f5f1;
+  --panel: #efede7;
+  --surface: #ffffff;
+  --line: #e2dfd6;
+  --line-strong: #cfcbbf;
+  --ink: #1f1e1b;
+  --ink-2: #57544c;
+  --ink-3: #8a867b;
+  --accent: #256b5e;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcebe6;
+  --user: #e8e5dc;
+  --danger: #b3372b;
+  --danger-soft: #f7e3df;
+  --warn: #8a5a00;
+  --warn-soft: #f6ecd2;
+  --code: #f0eee8;
+  --code-keyword: #8a3ea8;
+  --code-string: #1f6f4a;
+  --code-number: #a2560b;
+  --code-title: #1d5fa8;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #1c1b19;
+  --panel: #161514;
+  --surface: #262522;
+  --line: #34322e;
+  --line-strong: #4a4741;
+  --ink: #ecebe6;
+  --ink-2: #b5b2a8;
+  --ink-3: #85827a;
+  --accent: #5fb7a4;
+  --accent-ink: #0f1f1b;
+  --accent-soft: #20362f;
+  --user: #2f2e2a;
+  --danger: #ef8a7d;
+  --danger-soft: #3b211e;
+  --warn: #e3b558;
+  --warn-soft: #3a2f17;
+  --code: #1f1e1c;
+  --code-keyword: #cf9bea;
+  --code-string: #8fd0a8;
+  --code-number: #e5b06c;
+  --code-title: #8cbcf2;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-user: var(--user);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-code: var(--code);
+  --font-sans: ui-sans-serif, -apple-system, "Segoe UI", "Helvetica Neue", "Noto Sans", sans-serif;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Noto Serif", serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* In the base layer so utilities can override them (unlayered CSS always wins). */
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: default;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+  }
+}
+
+select.field {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a867b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  padding-right: 2.2rem;
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* Rendered Markdown: assistant answers and memory entries. Spacing is in em so it follows
+   the text size of wherever it is used. */
+.prose-z {
+  overflow-wrap: anywhere;
+}
+.prose-z > :first-child {
+  margin-top: 0;
+}
+.prose-z > :last-child {
+  margin-bottom: 0;
+}
+.prose-z p,
+.prose-z ul,
+.prose-z ol,
+.prose-z blockquote,
+.prose-z .table-wrap,
+.prose-z .code-block {
+  margin: 0.85em 0;
+}
+.prose-z h1,
+.prose-z h2,
+.prose-z h3,
+.prose-z h4 {
+  font-family: var(--font-sans);
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  margin: 1.5em 0 0.5em;
+}
+.prose-z h1 {
+  font-size: 1.3em;
+}
+.prose-z h2 {
+  font-size: 1.14em;
+}
+.prose-z h3,
+.prose-z h4 {
+  font-size: 1em;
+}
+.prose-z strong {
+  font-weight: 650;
+}
+/* A bold line standing alone above a list is a small heading: keep it close to its list. */
+.prose-z p:has(> strong:only-child) {
+  margin-top: 1.25em;
+}
+.prose-z p:has(> strong:only-child) + ul,
+.prose-z p:has(> strong:only-child) + ol,
+.prose-z h1 + ul,
+.prose-z h2 + ul,
+.prose-z h3 + ul,
+.prose-z h2 + ol,
+.prose-z h3 + ol {
+  margin-top: 0.35em;
+}
+.prose-z p:has(> strong:only-child):has(+ ul),
+.prose-z p:has(> strong:only-child):has(+ ol) {
+  margin-bottom: 0.35em;
+}
+.prose-z ul {
+  list-style: disc;
+  padding-left: 1.5em;
+}
+.prose-z ol {
+  list-style: decimal;
+  padding-left: 1.7em;
+}
+.prose-z ul ul {
+  list-style: circle;
+}
+.prose-z li {
+  margin: 0.4em 0;
+  padding-left: 0.15em;
+}
+.prose-z li::marker {
+  color: var(--ink-3);
+}
+.prose-z li > p {
+  margin: 0.4em 0;
+}
+.prose-z li > ul,
+.prose-z li > ol {
+  margin: 0.3em 0;
+}
+.prose-z li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.4em;
+}
+.prose-z input[type="checkbox"] {
+  margin-right: 0.5em;
+  accent-color: var(--accent);
+}
+.prose-z a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  text-underline-offset: 3px;
+}
+.prose-z a:hover {
+  text-decoration-color: var(--accent);
+}
+.prose-z :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.84em;
+  background: var(--code);
+  border-radius: 6px;
+  padding: 0.14em 0.4em;
+  /* a long command wraps instead of pushing the page sideways */
+  overflow-wrap: anywhere;
+}
+.prose-z .code-block {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--code);
+  font-family: var(--font-sans);
+}
+.prose-z .code-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2.1rem;
+  padding: 0 0.4rem 0 0.9rem;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--line);
+}
+.prose-z pre {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  tab-size: 2;
+  font-variant-ligatures: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.prose-z pre code {
+  font-family: inherit;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.prose-z blockquote {
+  border-left: 3px solid var(--line-strong);
+  padding-left: 1em;
+  color: var(--ink-2);
+}
+.prose-z hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.6em 0;
+}
+.prose-z img {
+  max-width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+/* Tables are read as data: plain sans text, rules between rows only, and a wide table
+   scrolls sideways inside its own box instead of squeezing every column. */
+.prose-z .table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.prose-z table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+/* Three or more columns need room: on a phone the table keeps a readable width and
+   scrolls sideways instead of crushing the last column to a few letters. */
+.prose-z table:has(th:nth-child(3)) {
+  min-width: 34rem;
+}
+.prose-z th,
+.prose-z td {
+  padding: 0.6em 0.9em;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+  min-width: 7rem;
+}
+.prose-z tr:last-child > td {
+  border-bottom: 0;
+}
+.prose-z th {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  background: var(--panel);
+  white-space: nowrap;
+}
+.prose-z td:first-child {
+  white-space: nowrap;
+}
+
+/* Code colours. Few and quiet: comments recede, strings and keywords stand out a little. */
+.hljs-comment,
+.hljs-quote,
+.hljs-meta {
+  color: var(--ink-3);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-built_in,
+.hljs-type {
+  color: var(--code-keyword);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attr,
+.hljs-symbol {
+  color: var(--code-string);
+}
+.hljs-number,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-link {
+  color: var(--code-number);
+}
+.hljs-title,
+.hljs-section,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: var(--code-title);
+}
+.hljs-deletion {
+  color: var(--danger);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+
+/* Placeholders shown while something loads: the shape of what is coming, with a slow
+   sheen passing over it. One easing for everything that appears. */
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes sheen {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+.skeleton {
+  border-radius: 8px;
+  background-color: var(--line);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--surface) 55%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: sheen 1.6s linear infinite;
+}
+/* Content that has just arrived settles in instead of popping. */
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.appear {
+  animation: appear 0.32s var(--ease-out) both;
+}
+@keyframes breathe {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.96);
+  }
+}
+.breathe {
+  animation: breathe 1.8s ease-in-out infinite;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@keyframes pulse-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ink-3);
+  animation: pulse-dot 1.2s infinite ease-in-out;
+}
+.dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .appear,
+  .breathe {
+    animation: none;
+  }
+  .dot {
+    animation: none;
+    opacity: 0.6;
+  }
+  * {
+    transition: none !important;
+  }
+}
