@@ -1,5 +1,5 @@
 import { ChevronDown, RefreshCw } from "lucide-react";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ApprovalCard } from "../components/ApprovalCard";
 import { type Attachment, Composer } from "../components/Composer";
 import { ChatSkeleton, Message, StreamingAnswer, Thinking, Working } from "../components/Messages";
@@ -30,6 +30,9 @@ type Props = {
   fresh: boolean;
   /** Channel conversations (Telegram) are shown, not written to. */
   readOnly: boolean;
+  /** A message to send as soon as this (new) chat opens: a quick request from Today. */
+  ask?: string | null;
+  onAsked?: () => void;
   onPickAgent: (alias: string) => void;
   onFirstMessage: (text: string) => void;
   onActivity: () => void;
@@ -41,6 +44,8 @@ export function Chat({
   agents,
   fresh,
   readOnly,
+  ask,
+  onAsked,
   onPickAgent,
   onFirstMessage,
   onActivity,
@@ -77,6 +82,15 @@ export function Chat({
       attachments.map((a) => a.path),
     );
   }
+
+  const asked = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once, when the chat opens with a request
+  useEffect(() => {
+    if (!ask || asked.current) return;
+    asked.current = true;
+    send(ask, []);
+    onAsked?.();
+  }, [ask]);
 
   // What the wait is for: the tool in use, or that the turn has not produced anything yet.
   const running = items.findLast((i) => i.kind === "tool" && i.pending);

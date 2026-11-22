@@ -9,6 +9,7 @@ import {
   Search,
   Send,
   Settings,
+  Sun,
   Trash2,
   Wrench,
 } from "lucide-react";
@@ -257,6 +258,9 @@ export function Sidebar(p: Props) {
           </span>
           New chat
         </button>
+        <NavLink to="/today" className={navClass} onClick={p.onNavigate}>
+          <Sun size={16} /> Today
+        </NavLink>
         <NavLink to="/agents" className={navClass} onClick={p.onNavigate}>
           <Bot size={16} /> Agents
         </NavLink>

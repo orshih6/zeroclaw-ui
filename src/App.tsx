@@ -14,6 +14,7 @@ import { Chat } from "./pages/Chat";
 import { Pair } from "./pages/Pair";
 
 // The chat is what people open this for; the other pages load when first visited.
+const Today = lazy(() => import("./pages/Today").then((m) => ({ default: m.Today })));
 const Jobs = lazy(() => import("./pages/Jobs").then((m) => ({ default: m.Jobs })));
 const Memory = lazy(() => import("./pages/Memory").then((m) => ({ default: m.Memory })));
 const Tools = lazy(() => import("./pages/Tools").then((m) => ({ default: m.Tools })));
@@ -29,6 +30,7 @@ const Gallery = import.meta.env.DEV
   : null;
 
 const PAGES = {
+  "/today": "Today",
   "/agents": "Agents",
   "/jobs": "Scheduled jobs",
   "/memory": "Memory",
@@ -177,6 +179,8 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
   const [draftId, setDraftId] = useState(() => crypto.randomUUID());
   const [draftAgent, setDraftAgent] = useState<string>(() => getLastAgent() ?? "assistant");
   const [drawer, setDrawer] = useState(false);
+  /** A request tapped on the Today page, for the new chat to send as its first message. */
+  const [asked, setAsked] = useState<string | null>(null);
   /** Agent of chats started here, until the server's list shows them. */
   const started = useRef(new Map<string, string>());
   const { titles, sync: syncTitles } = useChatTitles(sessions);
@@ -224,6 +228,12 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
     navigate("/");
     setDrawer(false);
   }, [navigate]);
+
+  /** A fresh chat that starts by sending `prompt`. */
+  function ask(prompt: string) {
+    setAsked(prompt);
+    newChat();
+  }
 
   /** A fresh chat with the given agent. */
   function chatWith(alias: string) {
@@ -322,6 +332,7 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
             {agentAlias && (
               <AgentPage key={agentAlias} alias={agentAlias} agents={agents} onChat={chatWith} />
             )}
+            {page === "/today" && <Today agents={agents} onAsk={ask} />}
             {page === "/jobs" && <Jobs agents={agents} />}
             {page === "/memory" && <Memory agents={agents} />}
             {page === "/tools" && <Tools agents={agents} />}
@@ -341,6 +352,8 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
               agents={agents}
               fresh={fresh}
               readOnly={Boolean(known?.channel_id)}
+              ask={isDraft ? asked : null}
+              onAsked={() => setAsked(null)}
               onPickAgent={(alias) => {
                 setDraftAgent(alias);
                 setLastAgent(alias);

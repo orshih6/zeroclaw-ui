@@ -1,5 +1,5 @@
 import { ChevronRight, Pencil, Play, Plus, Trash2, TriangleAlert } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Message } from "../components/Messages";
 import { ToolGroup } from "../components/ToolCard";
 import { Button, Confirm, Empty, Loading, Modal, Note, Page, fieldClass } from "../components/ui";
@@ -211,7 +211,7 @@ const QUIET = /^\s*NO_?REPLY\s*$/i;
 const QUIET_TEXT = "Nothing new, so it sent no message.";
 
 /** What one run said, drawn like a chat answer: text as Markdown, tool calls folded. */
-function RunResult({ output }: { output: string | null }) {
+export function RunResult({ output }: { output: string | null }) {
   const blocks = useMemo(() => toBlocks(said(output ?? "")), [output]);
   if (QUIET.test(output ?? "")) return <p className="text-sm text-ink-2">{QUIET_TEXT}</p>;
   if (blocks.length === 0) return <p className="text-sm text-ink-3">It finished without saying anything.</p>;
@@ -369,7 +369,10 @@ export function Jobs({ agents }: { agents: Agent[] }) {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  // "?job=<id>" opens that job: the Today page links to a job this way.
+  const [expanded, setExpanded] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get("job"),
+  );
   const [editing, setEditing] = useState<Draft | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [working, setWorking] = useState<string | null>(null);
@@ -413,6 +416,13 @@ export function Jobs({ agents }: { agents: Agent[] }) {
   }
 
   const titles = useMemo(() => jobTitles(jobs ?? []), [jobs]);
+  // The job a link asked for is brought into view, once.
+  const linked = useRef(expanded);
+  const intoView = useCallback((el: HTMLLIElement | null) => {
+    if (!el) return;
+    linked.current = null;
+    el.scrollIntoView({ block: "start" });
+  }, []);
 
   function blank(): Draft {
     const channel = channels[0]?.name ?? "";
@@ -475,7 +485,11 @@ export function Jobs({ agents }: { agents: Agent[] }) {
           const concern = failed ? "Failed" : runConcern(j.last_output);
           const preview = j.last_output ? runPreview(j.last_output) : "";
           return (
-            <li key={j.id} className="rounded-2xl border border-line bg-surface">
+            <li
+              key={j.id}
+              ref={open && linked.current === j.id ? intoView : undefined}
+              className="rounded-2xl border border-line bg-surface"
+            >
               <div className="flex items-start gap-3 p-4">
                 <button
                   type="button"

@@ -61,6 +61,15 @@ browser ── https://chat.example.com ──> zeroclaw-ui container (nginx)
 - `src/lib/telegram.ts`, `useTelegramBack.ts`: what changes when the page is opened as a
   Telegram Mini App (theme, bar colours, Back button, no swipe-to-close, the home
   indicator). Outside Telegram none of it runs.
+- `src/pages/Today.tsx` (`/today`): the page to open first. `todayView` (tested) sorts each
+  job's latest run into "needs a look", "new since the last visit", a count of runs with
+  nothing to report, and "seen before". It reuses `runPreview` / `runConcern` from Jobs, so
+  the two pages always agree on what a run said. The last visit and the quick requests are
+  kept in this browser (`zcui_today_seen`, `zcui_prompts`); the visit is recorded when the
+  page is left, not when it opens, or a reload would hide what was new. A quick request
+  starts a new chat and sends it at once (`ask` on `Chat`): a real turn. Approvals are not
+  listed: ZeroClaw has no list of them, a request only reaches the socket that sent the
+  message.
 - Pages: `Chat`, `Jobs`, `Memory`, `Tools`, `Status` (health, self-check, usage, log
   warnings), `Settings` (paired devices, pairing codes, theme). All but Chat load on demand.
 

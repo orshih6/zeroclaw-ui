@@ -14,6 +14,8 @@ own pairing code.
 
 ## What it does
 
+- Today: what the scheduled jobs did since you last looked, what needs you (a failed job,
+  a tool server that is down), what runs next, and one-tap buttons for your usual requests
 - Chat with any agent, with streaming answers, tool calls, approvals and image upload
 - Rename, delete and reopen conversations; Telegram conversations are readable
 - Scheduled jobs: see, add, edit, switch on or off, run now, and read past runs
@@ -81,10 +83,11 @@ Telegram (a Mini App). Set it once, with the bot's token and your own chat id:
 ```bash
 curl -s "https://api.telegram.org/bot<token>/setChatMenuButton" \
   -H 'Content-Type: application/json' \
-  -d '{"chat_id": <your chat id>, "menu_button": {"type": "web_app", "text": "Open", "web_app": {"url": "https://chat.example.com"}}}'
+  -d '{"chat_id": <your chat id>, "menu_button": {"type": "web_app", "text": "Open", "web_app": {"url": "https://chat.example.com/today"}}}'
 ```
 
-The button appears beside the message box. Inside Telegram the page takes Telegram's light
+The button appears beside the message box and opens the Today page (leave `/today` off to
+open on a new chat). Inside Telegram the page takes Telegram's light
 or dark theme (when the theme setting is "system"), uses Telegram's Back button, and cannot
 be swiped closed while you scroll a chat. Sign-in is the same pairing code, entered once
 inside Telegram; Telegram's own sign-in data is not used.

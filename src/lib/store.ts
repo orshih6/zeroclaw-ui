@@ -62,6 +62,32 @@ export function dropChatMeta(sessionId: string) {
   write(META, all);
 }
 
+const TODAY_SEEN = "zcui_today_seen";
+const PROMPTS = "zcui_prompts";
+
+/** When the Today page was last looked at (ms), or null on a first visit. */
+export function getTodaySeen(): number | null {
+  const v = read<number | null>(TODAY_SEEN, null);
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+export function setTodaySeen(at: number) {
+  write(TODAY_SEEN, at);
+}
+
+const DEFAULT_PROMPTS = ["What needs my attention today?", "Summarise what the scheduled jobs did today."];
+
+/** The one-tap requests on the Today page; the person's own list once they have edited it. */
+export function getQuickPrompts(): string[] {
+  const v = read<unknown>(PROMPTS, null);
+  if (!Array.isArray(v)) return DEFAULT_PROMPTS;
+  return v.filter((p): p is string => typeof p === "string" && p.trim() !== "").slice(0, 12);
+}
+
+export function setQuickPrompts(prompts: string[]) {
+  write(PROMPTS, [...new Set(prompts.map((p) => p.trim()).filter(Boolean))].slice(0, 12));
+}
+
 export function getLastAgent(): string | null {
   return read<string | null>(AGENT, null);
 }
