@@ -1,3 +1,5 @@
+import { paintTelegram, telegramDark } from "./telegram";
+
 // Small per-browser conveniences. Nothing here is needed for the app to work.
 function read<T>(key: string, fallback: T): T {
   try {
@@ -79,12 +81,16 @@ export function getThemeChoice(): ThemeChoice {
   }
 }
 
-/** Puts the chosen (or the system's) theme on the page. */
+/**
+ * Puts the chosen (or the system's) theme on the page. Inside Telegram "system" means
+ * Telegram's own theme, which can differ from the phone's.
+ */
 export function applyTheme() {
   const choice = getThemeChoice();
-  const dark =
-    choice === "dark" || (choice === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+  const system = telegramDark() ?? matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = choice === "dark" || (choice === "system" && system);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
+  paintTelegram();
 }
 
 export function setThemeChoice(choice: ThemeChoice) {

@@ -9,6 +9,7 @@ import { forget } from "./lib/conversations";
 import { isGreeting, parseHistory, pickTitle, titleFrom, titleFromItems } from "./lib/history";
 import { dropChatMeta, dropTitle, getLastAgent, getTitles, setLastAgent, setTitle } from "./lib/store";
 import type { Agent, Session } from "./lib/types";
+import { useTelegramBack } from "./lib/useTelegramBack";
 import { Chat } from "./pages/Chat";
 import { Pair } from "./pages/Pair";
 
@@ -179,6 +180,7 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
   /** Agent of chats started here, until the server's list shows them. */
   const started = useRef(new Map<string, string>());
   const { titles, sync: syncTitles } = useChatTitles(sessions);
+  useTelegramBack();
 
   const refresh = useCallback(() => {
     api

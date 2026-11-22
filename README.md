@@ -24,6 +24,7 @@ own pairing code.
 - Status: health of each part, self-check, usage in tokens, recent warnings and errors
 - Settings: paired devices, pairing codes for a new browser, theme
 - Light and dark theme, works on a phone
+- Opens inside Telegram as a Mini App of your ZeroClaw bot (optional)
 
 ## Before you put it online
 
@@ -71,6 +72,25 @@ docker run -p 8080:8080 -e ZEROCLAW_UPSTREAM=<zeroclaw-host>:42617 zeroclaw-ui
 
 Whatever sits in front (a reverse proxy, an ingress) must allow WebSockets and requests that
 run for minutes. Kubernetes examples are in [`k8s/`](k8s/README.md).
+
+## Open it from Telegram
+
+If ZeroClaw has a Telegram bot, that bot can carry a button that opens this page inside
+Telegram (a Mini App). Set it once, with the bot's token and your own chat id:
+
+```bash
+curl -s "https://api.telegram.org/bot<token>/setChatMenuButton" \
+  -H 'Content-Type: application/json' \
+  -d '{"chat_id": <your chat id>, "menu_button": {"type": "web_app", "text": "Open", "web_app": {"url": "https://chat.example.com"}}}'
+```
+
+The button appears beside the message box. Inside Telegram the page takes Telegram's light
+or dark theme (when the theme setting is "system"), uses Telegram's Back button, and cannot
+be swiped closed while you scroll a chat. Sign-in is the same pairing code, entered once
+inside Telegram; Telegram's own sign-in data is not used.
+
+It works in Telegram's phone and desktop apps. It does not work in Telegram Web, which
+shows Mini Apps in a frame, and this page refuses to be framed.
 
 ## Develop
 

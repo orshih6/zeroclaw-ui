@@ -58,6 +58,9 @@ browser ── https://chat.example.com ──> zeroclaw-ui container (nginx)
   (instructions, model, "ask me first", switch off). Deliberately plain: one column, one
   section per question a person has, words not config keys. Do not turn it into ZeroClaw's
   settings grid; what does not fit stays in ZeroClaw's own dashboard.
+- `src/lib/telegram.ts`, `useTelegramBack.ts`: what changes when the page is opened as a
+  Telegram Mini App (theme, bar colours, Back button, no swipe-to-close, the home
+  indicator). Outside Telegram none of it runs.
 - Pages: `Chat`, `Jobs`, `Memory`, `Tools`, `Status` (health, self-check, usage, log
   warnings), `Settings` (paired devices, pairing codes, theme). All but Chat load on demand.
 
@@ -146,6 +149,16 @@ browser ── https://chat.example.com ──> zeroclaw-ui container (nginx)
   utility, which is how a global focus outline once overrode `outline-none` on the message box.
 - The look follows the layout people know from Claude's web app (sidebar of chats, centred
   column, rounded message box) but must not copy Anthropic's name, logo or colours.
+
+- **Inside Telegram (`src/lib/telegram.ts`) the page talks to the Telegram app itself and
+  never loads telegram.org's script.** A paired browser holds a token with full control of
+  the agent, so the CSP allows no third-party script; keep it that way. Telegram's launch
+  parameters arrive in the URL fragment (kept in `sessionStorage` for reloads, then removed
+  from the address because they carry Telegram's signed data about the person, which
+  nothing here uses). Sign-in stays ZeroClaw's pairing code: do not turn Telegram's signed
+  data into a login without a server-side check that holds the bot token. nginx refuses
+  framing, so Telegram Web (an iframe) cannot open it; the phone and desktop apps can.
+  The menu button that opens it is set on the bot through Telegram's API, not by this repo.
 
 ## Commands
 

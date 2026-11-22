@@ -3,8 +3,10 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { applyTheme } from "./lib/store";
+import { initTelegram } from "./lib/telegram";
 import "./styles.css";
 
+initTelegram(applyTheme); // before the router reads the address
 applyTheme();
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
 

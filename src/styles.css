@@ -94,6 +94,12 @@
     overscroll-behavior: none;
   }
 
+  /* As a Telegram Mini App: stay above the phone's home indicator, which Telegram reports
+     (the page's own safe-area inset is zero inside its sheet). */
+  [data-telegram] body {
+    padding-bottom: var(--tg-safe-bottom, 0px);
+  }
+
   button {
     cursor: pointer;
   }
