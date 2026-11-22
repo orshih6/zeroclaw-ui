@@ -2,7 +2,7 @@
 // hold, with made-up content shaped like what ZeroClaw's assistant really writes. Look
 // here after changing how messages are drawn. Not part of the production build.
 import { ApprovalCard } from "../components/ApprovalCard";
-import { Dots, Message, StreamingAnswer, Thinking } from "../components/Messages";
+import { Message, StreamingAnswer, Thinking, Working } from "../components/Messages";
 import { ToolGroup } from "../components/ToolCard";
 import { toBlocks } from "../lib/blocks";
 import { parseHistory } from "../lib/history";
@@ -224,7 +224,7 @@ export function Gallery() {
           <StreamingAnswer text={"Checking the first service now. So far:\n• api is **up**\n• worker is"} />
         </div>
         <div className="mt-3">
-          <Dots />
+          <Working what="Using cron list" since={Date.now() - 12000} />
         </div>
         <div className="mt-4">
           <ApprovalCard

@@ -2,10 +2,11 @@ import { ChevronDown, RefreshCw } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ApprovalCard } from "../components/ApprovalCard";
 import { type Attachment, Composer } from "../components/Composer";
-import { ChatSkeleton, Dots, Message, StreamingAnswer, Thinking } from "../components/Messages";
+import { ChatSkeleton, Message, StreamingAnswer, Thinking, Working } from "../components/Messages";
 import { ModelMenu } from "../components/ModelMenu";
 import { ToolGroup } from "../components/ToolCard";
 import { Note, Segmented } from "../components/ui";
+import { actionLabel } from "../lib/agents";
 import { toBlocks } from "../lib/blocks";
 import { agentHint, agentLabel } from "../lib/format";
 import type { Agent } from "../lib/types";
@@ -45,7 +46,7 @@ export function Chat({
   onActivity,
 }: Props) {
   const chat = useChat({ sessionId, agent, fresh, readOnly, onFirstMessage, onTurnEnd: onActivity });
-  const { items, draft, thinking, busy, approval, usage } = chat.state;
+  const { items, draft, thinking, busy, approval, usage, startedAt } = chat.state;
   const blocks = useMemo(() => toBlocks(items), [items]);
   const [atBottom, setAtBottom] = useState(true);
   const scroller = useRef<HTMLDivElement>(null);
@@ -76,6 +77,17 @@ export function Chat({
       attachments.map((a) => a.path),
     );
   }
+
+  // What the wait is for: the tool in use, or that the turn has not produced anything yet.
+  const running = items.findLast((i) => i.kind === "tool" && i.pending);
+  const heard = items.at(-1)?.kind !== "user" || Boolean(thinking);
+  const working =
+    running?.kind === "tool"
+      ? `Using ${actionLabel(running.name).action.toLowerCase()}`
+      : heard
+        ? "Working"
+        : "Starting";
+  const contextUsed = usage ? Math.min(100, Math.round((usage.used / usage.max) * 100)) : null;
 
   const usable = agents.filter((a) => a.enabled !== false);
   const empty = !chat.loading && !chat.loadError && items.length === 0 && !busy;
@@ -146,7 +158,7 @@ export function Chat({
           )}
           {busy && !draft && !approval && (
             <div className={GAP.tool}>
-              <Dots />
+              <Working what={working} since={startedAt} />
             </div>
           )}
           {approval && (
@@ -198,7 +210,15 @@ export function Chat({
             {composer}
             <p className="pt-1.5 text-center text-[11px] text-ink-3">
               {agentLabel(agent)} · {agentHint(agent)}
-              {usage && ` · context ${Math.min(100, Math.round((usage.used / usage.max) * 100))}% used`}
+              {contextUsed !== null &&
+                (contextUsed >= 85 ? (
+                  <span className="font-medium text-warn">
+                    {" "}
+                    · context {contextUsed}% used: start a new chat soon, or earlier messages get dropped
+                  </span>
+                ) : (
+                  ` · context ${contextUsed}% used`
+                ))}
             </p>
           </>
         )}

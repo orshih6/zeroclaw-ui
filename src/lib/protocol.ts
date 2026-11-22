@@ -25,6 +25,9 @@ const PIECES = [
   String.raw`<tool_result(?:\s+name="([^"]*)")?[^>]*>\n?([\s\S]*?)\n?<\/tool_(?:result|call)>`,
   // 4,5: Anthropic's form, <invoke name="x"><parameter name="k">v</parameter></invoke>
   String.raw`<(?:antml:)?invoke\s+name="([^"]+)"\s*>([\s\S]*?)<\/(?:antml:)?invoke>`,
+  // Anthropic's result block, <function_results><result name="x">…</result></function_results>.
+  // ZeroClaw never writes this form: a model that does is making the result up.
+  String.raw`<function_?results>[\s\S]*?<\/function_?results>`,
   // wrappers around calls, and echoed settings
   String.raw`<\/?(?:antml:)?function_calls>`,
   String.raw`<(?:${NOISE})>[\s\S]*?<\/(?:${NOISE})>`,
@@ -34,13 +37,16 @@ const PIECES = [
 ];
 // 8,9: only where text can be cut off (a job's saved output): a result with no closing tag
 const CUT_RESULT = String.raw`<tool_result(?:\s+name="([^"]*)")?[^>]*>\n?([\s\S]*)$`;
+// and the made-up kind, cut off the same way
+const CUT_INVENTED = String.raw`<function_?results>[\s\S]*$`;
+const INVENTED = /^<function_?results>/;
 
 // Last, after every whole form had its chance: a protocol tag left on its own (an unmatched
 // </invoke>, a lone <tool_call>). It means nothing to a reader.
-const STRAY = String.raw`<\/?(?:antml:)?(?:invoke|function_calls|tool_call|tool_result|parameter)\b[^>]*>`;
+const STRAY = String.raw`<\/?(?:antml:)?(?:invoke|function_calls|function_?results|tool_call|tool_result|parameter)\b[^>]*>`;
 
 const WHOLE = new RegExp([...PIECES, STRAY].join("|"), "g");
-const WHOLE_OR_CUT = new RegExp([...PIECES, CUT_RESULT, STRAY].join("|"), "g");
+const WHOLE_OR_CUT = new RegExp([...PIECES, CUT_RESULT, CUT_INVENTED, STRAY].join("|"), "g");
 
 const HEADERS = /^\[Tool (results|attachments: \d+)\]\s*$/gm;
 /** What is left when a call was wrapped in a code fence: just the fence marks. */
@@ -89,6 +95,9 @@ export function splitModelText(text: string, from: "assistant" | "zeroclaw" = "a
     } else if (m[4] !== undefined) parts.push({ kind: "unrun", what: "call", name: m[4] });
     else if (m[6] !== undefined) parts.push({ kind: "unrun", what: "call", name: m[6] });
     else if (m[9] !== undefined) parts.push({ kind: "result", name: m[8] ?? null, output: m[9] });
+    else if (INVENTED.test(m[0])) {
+      parts.push({ kind: "unrun", what: "result", name: /<result\s+name="([^"]*)"/.exec(m[0])?.[1] ?? null });
+    }
     // anything else matched is a wrapper or noise: dropped
   }
   say(text.slice(last));

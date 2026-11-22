@@ -76,6 +76,20 @@ browser ── https://chat.example.com ──> zeroclaw-ui container (nginx)
   stream (reload, another device), the chat asks `GET /api/sessions/<id>/state`, and while
   it says `running` waits and then reads the saved rows. `state` stays `idle` for up to
   ~10 s after a send, before the turn starts: a reload in that window shows nothing running.
+- **ZeroClaw can take 10 to 30 s before the first event of a turn.** The dots carry a line
+  that says what the wait is for ("Starting", "Using cron list", "Working") and, after 4 s,
+  for how long (`Working` in `Messages.tsx`, `startedAt` in `chatState.ts`). Keep it: a
+  silent wait reads as a stuck page.
+- **The model and the context use arrive only in the live `done` event**, not in saved
+  history. They are remembered per chat in this browser (`zcui_chat_meta`) so a reload
+  still shows them. A new chat starts near 55 to 65% context (ZeroClaw's instructions and
+  ~150 tools); the footer turns into a warning from 85%.
+- **Each agent has its own tool bundle** (`/api/tools?agent=`): Upwork's tools belong to the
+  `upwork` agent alone. A tool server is down only when no agent has its tools
+  (`lib/toolServers.ts`, used by Tools and by the Status headline). Asking only `assistant`
+  once made the Tools page report Upwork as not answering when it was fine.
+- `last_seen` on a paired device is never updated by ZeroClaw (it equals `paired_at`), so
+  the device list cannot say when a device was last used.
 - A new chat opens its WebSocket on the **first message**, not when the page opens, so
   looking at the empty page creates nothing on the server.
 - `POST /api/cron` ignores `enabled: false` (a new job starts enabled) and needs the field
@@ -85,9 +99,15 @@ browser ── https://chat.example.com ──> zeroclaw-ui container (nginx)
   usually just the answer, sometimes the whole turn with tool calls inline. `parseTranscript`
   reads both, so the Jobs page can draw a run like a chat answer. `NO_REPLY` is what a job
   answers when it was told to stay silent: shown as "Nothing new".
+- **ZeroClaw calls a run "ok" when the turn ended, not when the work was done.** The Jobs
+  list adds its own mark (`runConcern`): "Nothing was run" (only made-up tool calls), "No
+  summary", or "May need a look" when the run's first line says it could not do the job.
+  The last is a guess from words, so it is amber, never red; red is for `last_status`.
 - `POST /api/memory` with an existing key replaces that entry: that is how editing works.
-- The session list has no titles. Titles live in this browser (`zcui_titles`); a rename is
-  also sent to ZeroClaw (`PUT /api/sessions/<id>`) but the list does not return it.
+- A chat's title is ZeroClaw's `name` (set with `PUT /api/sessions/<id>`, returned by the
+  session list); this browser also keeps one (`zcui_titles`) for chats that have none yet.
+  A chat that opened with a greeting ("hello") is renamed after its first real question
+  once it has one (`titleFromItems`, `pickTitle`).
 - Saved user rows carry what ZeroClaw added for the model: `[CURRENT DATE & TIME: …]`, and for
   Telegram a `[Memory context]…[/Memory context]` block, a `[turn-context] …` line and an
   arrival time. `cleanUserText` strips them; rows like `[Tool call parse error]` were never
@@ -95,7 +115,7 @@ browser ── https://chat.example.com ──> zeroclaw-ui container (nginx)
   them there, with a test.
 - **Only ZeroClaw's own `<tool_call>{json}</tool_call>` in an answer was really run.** A model
   also writes calls ZeroClaw never acts on: the `<invoke>` dialect, a tool's name as a tag
-  (`<cron_list></cron_list>`), a `<tool_result>` it made up, tags echoed from its prompt
+  (`<cron_list></cron_list>`), a `<tool_result>` or `<function_results>` block it made up, tags echoed from its prompt
   (`<reasoning_effort>`). Seen in a real chat: the assistant invented a `cron_list` call and
   an empty result, then said there were no cron jobs (there were 7). Such markup is removed
   and replaced by one **caution** row saying the call was never run. Never draw it as a tool

@@ -6,7 +6,8 @@ import { api } from "./api";
 import { type ChatAction, type ChatState, chatReducer, emptyChat } from "./chatState";
 import { parseHistory } from "./history";
 import { ChatSocket, type SocketStatus } from "./socket";
-import type { ServerEvent } from "./types";
+import { getChatMeta, setChatMeta } from "./store";
+import type { Item, ServerEvent } from "./types";
 
 const UNSENT = "Could not reach ZeroClaw. Your message was not sent.";
 const POLL_MS = 2000;
@@ -85,7 +86,17 @@ export class Conversation {
   private onEvent = (event: ServerEvent) => {
     const was = this.busy;
     this.dispatch({ type: "server", event, now: Date.now() });
-    if (event.type === "done" || event.type === "message") this.handlers.onTurnEnd?.();
+    if (event.type === "done" || event.type === "message") {
+      const usage = this.view.chat.usage;
+      if (event.model || usage) {
+        setChatMeta(this.sessionId, {
+          ...getChatMeta(this.sessionId),
+          ...(event.model ? { model: event.model } : {}),
+          ...(usage ? usage : {}),
+        });
+      }
+      this.handlers.onTurnEnd?.();
+    }
     // Nobody is looking and the turn is over: the stream has nothing more to bring.
     if (was && !this.busy) {
       notifyBusy();
@@ -146,7 +157,7 @@ export class Conversation {
       .messages(this.sessionId)
       .then((rows) => {
         if (run !== this.run) return;
-        this.dispatch({ type: "history", items: parseHistory(rows) });
+        this.dispatch({ type: "history", ...this.remembered(parseHistory(rows)) });
         this.set({ loading: false });
         if (!this.readOnly) this.watchIfRunning(run);
       })
@@ -157,6 +168,15 @@ export class Conversation {
       });
   }
 
+  /** Saved rows carry no model and no context use: what this browser saw last fills them in. */
+  private remembered(items: Item[]) {
+    const meta = getChatMeta(this.sessionId);
+    const last = items.at(-1);
+    if (meta?.model && last?.kind === "assistant") last.model = meta.model;
+    const usage = meta?.used && meta.max ? { used: meta.used, max: meta.max } : undefined;
+    return { items, usage };
+  }
+
   // Opened while a turn started somewhere else (another tab, before a reload) is still
   // running: its stream cannot be joined, so wait for it to end and read what was saved.
   private watchIfRunning(run: number) {
@@ -165,7 +185,7 @@ export class Conversation {
       .then((state) => {
         // Busy by now means the reader sent a message meanwhile: that turn has its stream.
         if (run !== this.run || this.busy || state !== "running") return;
-        this.dispatch({ type: "waiting" });
+        this.dispatch({ type: "waiting", now: Date.now() });
         notifyBusy();
         this.poll = setTimeout(() => this.waitForEnd(run), POLL_MS);
       })
@@ -209,7 +229,7 @@ export class Conversation {
       this.dispatch({ type: "problem", text: UNSENT });
       return false;
     }
-    this.dispatch({ type: "sent", text, images: imagePaths });
+    this.dispatch({ type: "sent", text, images: imagePaths, now: Date.now() });
     notifyBusy();
     if (!this.sentAny) {
       this.sentAny = true;

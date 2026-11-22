@@ -6,8 +6,8 @@ import { Sidebar } from "./components/Sidebar";
 import { Button, IconButton, Loading, Skeleton, useDelayed } from "./components/ui";
 import { UNAUTHORIZED_EVENT, api, checkSession, setToken } from "./lib/api";
 import { forget } from "./lib/conversations";
-import { parseHistory, titleFrom } from "./lib/history";
-import { dropTitle, getLastAgent, getTitles, setLastAgent, setTitle } from "./lib/store";
+import { isGreeting, parseHistory, pickTitle, titleFrom, titleFromItems } from "./lib/history";
+import { dropChatMeta, dropTitle, getLastAgent, getTitles, setLastAgent, setTitle } from "./lib/store";
 import type { Agent, Session } from "./lib/types";
 import { Chat } from "./pages/Chat";
 import { Pair } from "./pages/Pair";
@@ -125,25 +125,36 @@ export function App() {
   );
 }
 
-/** Chats ZeroClaw has no name for get one from their first message, a few at a time. */
+/**
+ * Chats ZeroClaw has no name for get one from what was asked in them, a few at a time. A
+ * chat that opened with "hello" is named after the first real question, so it is asked
+ * again when it has grown.
+ */
 function useChatTitles(sessions: Session[]) {
   const [titles, setTitles] = useState(getTitles);
   const asked = useRef(new Set<string>());
   const sync = useCallback(() => setTitles(getTitles()), []);
 
   useEffect(() => {
+    const once = (s: Session) => `${s.session_id}:${s.message_count}`;
     const todo = sessions
-      .filter((s) => !s.channel_id && !s.name && !titles[s.session_id] && !asked.current.has(s.session_id))
+      .filter((s) => {
+        if (s.channel_id || asked.current.has(once(s))) return false;
+        const has = pickTitle(s.name, titles[s.session_id]);
+        return !has || (isGreeting(has) && s.message_count > 2);
+      })
       .slice(0, 6);
     for (const s of todo) {
-      asked.current.add(s.session_id);
+      asked.current.add(once(s));
       api
         .messages(s.session_id)
         .then((rows) => {
-          const first = parseHistory(rows).find((i) => i.kind === "user");
-          if (first?.kind === "user") {
-            setTitle(s.session_id, titleFrom(first.text));
+          const title = titleFromItems(parseHistory(rows));
+          if (title && title !== pickTitle(s.name, titles[s.session_id])) {
+            setTitle(s.session_id, title);
             sync();
+            // so the other browsers see the better name too
+            if (s.name) api.renameSession(s.session_id, title).catch(() => {});
           }
         })
         .catch(() => {
@@ -233,6 +244,7 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
       .then(() => {
         forget(id);
         dropTitle(id);
+        dropChatMeta(id);
         syncTitles();
         setSessions((all) => all.filter((s) => s.session_id !== id));
         if (id === sessionId) newChat();
@@ -253,7 +265,11 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
     }, 1500);
   }
 
-  const heading = page ? PAGES[page] : isDraft ? "New chat" : (known?.name ?? titles[sessionId] ?? "Chat");
+  const heading = page
+    ? PAGES[page]
+    : isDraft
+      ? "New chat"
+      : (pickTitle(known?.name, titles[sessionId]) ?? "Chat");
 
   return (
     <div className="flex h-full">

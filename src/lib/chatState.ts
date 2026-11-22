@@ -11,6 +11,8 @@ export type ChatState = {
   /** Thinking streamed so far in the current turn. */
   thinking: string;
   busy: boolean;
+  /** When the turn that is running began, for "12 s" next to the dots. */
+  startedAt: number | null;
   approval: Approval | null;
   usage: { used: number; max: number } | null;
 };
@@ -20,17 +22,18 @@ export const emptyChat: ChatState = {
   draft: "",
   thinking: "",
   busy: false,
+  startedAt: null,
   approval: null,
   usage: null,
 };
 
 export type ChatAction =
-  | { type: "history"; items: Item[] }
+  | { type: "history"; items: Item[]; usage?: ChatState["usage"] }
   /** A turn started elsewhere is still running; its stream cannot be joined. */
-  | { type: "waiting" }
+  | { type: "waiting"; now?: number }
   /** That turn ended: what was saved replaces what is shown. */
   | { type: "caught_up"; items: Item[] }
-  | { type: "sent"; text: string; images: string[] }
+  | { type: "sent"; text: string; images: string[]; now?: number }
   | { type: "problem"; text: string }
   | { type: "approval_answered" }
   | { type: "server"; event: ServerEvent; now: number };
@@ -39,7 +42,14 @@ const settle = (items: Item[]): Item[] =>
   items.map((x) => (x.kind === "tool" && x.pending ? { ...x, pending: false } : x));
 
 /** The turn is over: nothing is streaming and nothing waits for an answer. */
-const idle = (s: ChatState): ChatState => ({ ...s, draft: "", thinking: "", busy: false, approval: null });
+const idle = (s: ChatState): ChatState => ({
+  ...s,
+  draft: "",
+  thinking: "",
+  busy: false,
+  startedAt: null,
+  approval: null,
+});
 
 function onServer(s: ChatState, e: ServerEvent, now: number): ChatState {
   switch (e.type) {
@@ -154,19 +164,25 @@ function onServer(s: ChatState, e: ServerEvent, now: number): ChatState {
 export function chatReducer(s: ChatState, a: ChatAction): ChatState {
   switch (a.type) {
     case "history":
-      return { ...s, items: a.items };
+      return { ...s, items: a.items, usage: a.usage ?? s.usage };
     case "waiting":
-      return { ...s, busy: true };
+      return { ...s, busy: true, startedAt: a.now ?? null };
     case "caught_up":
       return { ...idle(s), items: a.items };
     case "sent":
       return {
         ...s,
         busy: true,
+        startedAt: a.now ?? null,
         items: [...s.items, { id: newId(), kind: "user", text: a.text, images: a.images }],
       };
     case "problem":
-      return { ...s, busy: false, items: [...s.items, { id: newId(), kind: "error", text: a.text }] };
+      return {
+        ...s,
+        busy: false,
+        startedAt: null,
+        items: [...s.items, { id: newId(), kind: "error", text: a.text }],
+      };
     case "approval_answered":
       return { ...s, approval: null };
     case "server":

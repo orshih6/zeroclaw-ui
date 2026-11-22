@@ -159,6 +159,27 @@ export function parseTranscript(text: string): Item[] {
   return items;
 }
 
+const GREETING =
+  /^(h(i|ello|ey|iya)|yo|sup|good (morning|afternoon|evening)|сайн уу|сайн байна уу|sain uu|sain baina uu|test|testing)( there| claw| zeroclaw| assistant)?[\s!.?,]*$/i;
+
+/** "hello", "hi!", "сайн уу": says nothing about what the chat is about. */
+export function isGreeting(text: string): boolean {
+  return GREETING.test(text.trim());
+}
+
+/** The name to show: ZeroClaw's, unless that is only a greeting and this browser knows better. */
+export function pickTitle(name: string | null | undefined, local: string | undefined): string | undefined {
+  if (name && !isGreeting(name)) return name;
+  return local || name || undefined;
+}
+
+/** What the chat is about: the first thing the user said that is more than a greeting. */
+export function titleFromItems(items: Item[]): string | null {
+  const said = items.filter((i) => i.kind === "user");
+  const pick = said.find((i) => i.kind === "user" && i.text && !isGreeting(i.text)) ?? said[0];
+  return pick?.kind === "user" ? titleFrom(pick.text) : null;
+}
+
 /** A short title from the first thing the user said. */
 export function titleFrom(text: string): string {
   const one = cleanUserText(text).replace(IMAGE_MARKER, "").replace(/\s+/g, " ").trim();

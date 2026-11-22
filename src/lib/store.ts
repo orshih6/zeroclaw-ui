@@ -19,6 +19,7 @@ function write(key: string, value: unknown) {
 const TITLES = "zcui_titles";
 const AGENT = "zcui_agent";
 const THEME = "zcui_theme";
+const META = "zcui_chat_meta";
 
 /** ZeroClaw's session list carries no name, so titles are remembered here. */
 export function getTitles(): Record<string, string> {
@@ -35,6 +36,28 @@ export function dropTitle(sessionId: string) {
   const all = getTitles();
   delete all[sessionId];
   write(TITLES, all);
+}
+
+/** ZeroClaw tells the model and the context use only in the live stream, not in saved history. */
+export type ChatMeta = { model?: string; used?: number; max?: number };
+
+export function getChatMeta(sessionId: string): ChatMeta | null {
+  return read<Record<string, ChatMeta>>(META, {})[sessionId] ?? null;
+}
+
+export function setChatMeta(sessionId: string, meta: ChatMeta) {
+  const all = read<Record<string, ChatMeta>>(META, {});
+  // Kept for the chats used most recently; the rest simply show no model after a reload.
+  const kept = Object.entries(all)
+    .filter(([id]) => id !== sessionId)
+    .slice(-199);
+  write(META, Object.fromEntries([...kept, [sessionId, meta]]));
+}
+
+export function dropChatMeta(sessionId: string) {
+  const all = read<Record<string, ChatMeta>>(META, {});
+  delete all[sessionId];
+  write(META, all);
 }
 
 export function getLastAgent(): string | null {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeMarkdown } from "./markdown";
+import { normalizeMarkdown, settleStreaming } from "./markdown";
 
 describe("normalizeMarkdown", () => {
   it("turns Telegram-style bullets into list items", () => {
@@ -22,5 +22,20 @@ describe("normalizeMarkdown", () => {
     expect(normalizeMarkdown(code)).toBe(code);
     expect(normalizeMarkdown("5 • 3 = 15, and a dash – here")).toBe("5 • 3 = 15, and a dash – here");
     expect(normalizeMarkdown("- already\n* markdown\n1. list")).toBe("- already\n* markdown\n1. list");
+  });
+});
+
+describe("settleStreaming", () => {
+  it("drops a mark that is still being written, on the last line only", () => {
+    expect(settleStreaming("- `42")).toBe("- 42");
+    expect(settleStreaming("Done `a` and `b")).toBe("Done `a` and b");
+    expect(settleStreaming("**Worth a lo")).toBe("Worth a lo");
+    expect(settleStreaming("one `open\nsecond line")).toBe("one `open\nsecond line");
+    expect(settleStreaming("a list\n- *")).toBe("a list\n- ");
+  });
+
+  it("leaves finished marks and open code blocks alone", () => {
+    expect(settleStreaming("**bold** and `code`")).toBe("**bold** and `code`");
+    expect(settleStreaming("```js\nconst a = `x")).toBe("```js\nconst a = `x");
   });
 });

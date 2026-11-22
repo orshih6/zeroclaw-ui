@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, Loading, Note, Page, Section, Segmented } from "../components/ui";
 import { api } from "../lib/api";
 import { agentLabel, compact, modelLabel, shortDate, uptime } from "../lib/format";
+import { type ToolGroup, loadToolGroups, serverLabel } from "../lib/toolServers";
 import type { DoctorResult, LogEvent, Status as StatusData, Usage, UsageRow } from "../lib/types";
 
 type Range = "today" | "week" | "month" | "all";
@@ -35,6 +36,38 @@ const COMPONENT_LABEL: Record<string, string> = {
 function componentLabel(key: string): string {
   if (key.startsWith("channel:")) return `Channel · ${key.slice(8)}`;
   return COMPONENT_LABEL[key] ?? key.charAt(0).toUpperCase() + key.slice(1).replace(/[-_]/g, " ");
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** One sentence for the top of the page, from everything the page knows, worst first. */
+export function statusHeadline(
+  brokenParts: number,
+  downServers: string[],
+  checkErrors: number,
+  checkWarnings: number,
+): { level: "ok" | "warn" | "bad"; text: string; detail?: string } {
+  const notes: string[] = [];
+  if (downServers.length)
+    notes.push(
+      `${downServers.length === 1 ? "Tool server" : "Tool servers"} not answering: ${downServers.join(", ")}.`,
+    );
+  if (checkErrors) notes.push(`The self-check found ${plural(checkErrors, "error", "errors")}.`);
+  if (checkWarnings)
+    notes.push(`The self-check has ${plural(checkWarnings, "warning", "warnings")}, listed below.`);
+  const detail = notes.join(" ") || undefined;
+  if (brokenParts)
+    return { level: "bad", text: `${plural(brokenParts, "part needs", "parts need")} attention`, detail };
+  if (downServers.length)
+    return {
+      level: "bad",
+      text: `Running, but ${plural(downServers.length, "tool server is", "tool servers are")} down`,
+      detail,
+    };
+  if (checkErrors) return { level: "bad", text: "Running, but the self-check found errors", detail };
+  if (checkWarnings)
+    return { level: "warn", text: `Running, with ${plural(checkWarnings, "warning", "warnings")}`, detail };
+  return { level: "ok", text: "Everything is running" };
 }
 
 function UsageTable({
@@ -83,6 +116,7 @@ export function Status() {
   const [usageLoading, setUsageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [servers, setServers] = useState<ToolGroup[]>([]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -98,6 +132,11 @@ export function Status() {
         .problems()
         .then(setProblems)
         .catch(() => setProblems([])),
+      api
+        .agents()
+        .then((a) => loadToolGroups(a.filter((x) => x.enabled !== false).map((x) => x.alias)))
+        .then(setServers)
+        .catch(() => setServers([])),
     ])
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
@@ -119,6 +158,19 @@ export function Status() {
   const components = Object.entries(status?.health.components ?? {}).sort(([a], [b]) => a.localeCompare(b));
   const broken = components.filter(([, c]) => c.status !== "ok");
   const failing = (checks ?? []).filter((c) => c.severity !== "ok");
+  const down = servers.filter((s) => !s.connected);
+  const headline = statusHeadline(
+    broken.length,
+    down.map((s) => serverLabel(s.name)),
+    failing.filter((c) => c.severity === "error").length,
+    failing.filter((c) => c.severity !== "error").length,
+  );
+  const tone = {
+    ok: "border-line bg-surface",
+    warn: "border-line bg-surface",
+    bad: "border-danger/40 bg-danger-soft",
+  }[headline.level];
+  const dot = { ok: "bg-accent", warn: "bg-warn", bad: "bg-danger" }[headline.level];
 
   return (
     <Page
@@ -135,18 +187,12 @@ export function Status() {
 
       {status && (
         <>
-          <div
-            className={`mt-5 rounded-2xl border p-4 ${broken.length ? "border-danger/40 bg-danger-soft" : "border-line bg-surface"}`}
-          >
+          <div className={`mt-5 rounded-2xl border p-4 ${tone}`}>
             <p className="flex items-center gap-2.5 text-lg font-medium">
-              <span
-                className={`h-2.5 w-2.5 rounded-full ${broken.length ? "bg-danger" : "bg-accent"}`}
-                aria-hidden="true"
-              />
-              {broken.length
-                ? `${broken.length} ${broken.length === 1 ? "part needs" : "parts need"} attention`
-                : "Everything is running"}
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
+              {headline.text}
             </p>
+            {headline.detail && <p className="mt-1 text-sm">{headline.detail}</p>}
             <p className="mt-1 text-sm text-ink-2">
               ZeroClaw {status.version} · up {uptime(status.uptime_seconds)} · default model{" "}
               {modelLabel(status.model)}

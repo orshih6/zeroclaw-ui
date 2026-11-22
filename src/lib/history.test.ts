@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { cleanUserText, parseHistory, parseTranscript, splitImages, titleFrom } from "./history";
+import {
+  cleanUserText,
+  isGreeting,
+  parseHistory,
+  parseTranscript,
+  splitImages,
+  titleFrom,
+  titleFromItems,
+} from "./history";
 
 describe("parseHistory", () => {
   it("turns stored rows into user, tool and assistant items", () => {
@@ -186,5 +194,25 @@ describe("parseHistory: tool calls that never ran", () => {
       { role: "user", content: "[Tool results]\n<tool_result>\nok\n</tool_result>" },
     ]);
     expect(items).toMatchObject([{ kind: "tool", name: "a", output: "ok", pending: false }]);
+  });
+});
+
+describe("titles", () => {
+  it("knows a greeting from a question", () => {
+    for (const g of ["hello", "Hi!", "hey there", "сайн уу", "Hello.", "test"])
+      expect(isGreeting(g)).toBe(true);
+    for (const q of ["hello, list my jobs", "hi can you check upwork", "high scores"])
+      expect(isGreeting(q)).toBe(false);
+  });
+
+  it("names a chat after the first real question", () => {
+    const rows = [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "Hi!" },
+      { role: "user", content: "what is on my calendar?" },
+    ];
+    expect(titleFromItems(parseHistory(rows))).toBe("what is on my calendar?");
+    expect(titleFromItems(parseHistory(rows.slice(0, 2)))).toBe("hello");
+    expect(titleFromItems([])).toBeNull();
   });
 });

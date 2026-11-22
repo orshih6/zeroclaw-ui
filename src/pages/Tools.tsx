@@ -1,62 +1,36 @@
 import { ChevronRight, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Empty, Loading, Note, Page } from "../components/ui";
-import { api } from "../lib/api";
-import type { Agent, Tool } from "../lib/types";
-
-const BUILT_IN = "Built in";
-
-type Group = { name: string; tools: Tool[]; connected: boolean; builtIn: boolean };
-
-/** "instagram_shop" → "Instagram · shop". */
-function serverLabel(name: string): string {
-  const [head, ...rest] = name.split("_");
-  const title = head.charAt(0).toUpperCase() + head.slice(1);
-  return rest.length ? `${title} · ${rest.join(" ")}` : title;
-}
+import { agentLabel } from "../lib/format";
+import { type ToolGroup, loadToolGroups, serverLabel } from "../lib/toolServers";
+import type { Agent } from "../lib/types";
 
 export function Tools({ agents }: { agents: Agent[] }) {
-  const [tools, setTools] = useState<Tool[] | null>(null);
-  const [servers, setServers] = useState<string[]>([]);
+  const [groups, setGroups] = useState<ToolGroup[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
-  const agent = agents.find((a) => a.alias === "assistant")?.alias ?? agents[0]?.alias;
+  const aliases = useMemo(
+    () =>
+      agents
+        .filter((a) => a.enabled !== false)
+        .map((a) => a.alias)
+        .join(","),
+    [agents],
+  );
 
   useEffect(() => {
-    if (!agent) return;
-    api
-      .tools(agent)
-      .then(setTools)
+    if (!aliases) return;
+    loadToolGroups(aliases.split(","))
+      .then(setGroups)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-    // Without the list of configured servers a server that is down simply would not show.
-    api
-      .toolServers()
-      .then(setServers)
-      .catch(() => setServers([]));
-  }, [agent]);
+  }, [aliases]);
 
-  const groups = useMemo(() => {
-    const by = new Map<string, Tool[]>();
-    for (const t of tools ?? []) {
-      const i = t.name.indexOf("__");
-      const server = i > 0 ? t.name.slice(0, i) : BUILT_IN;
-      by.set(server, [...(by.get(server) ?? []), t]);
-    }
-    const names = [...new Set([...servers, ...by.keys()])].filter((n) => n !== BUILT_IN).sort();
-    const out: Group[] = names.map((name) => ({
-      name,
-      tools: by.get(name) ?? [],
-      connected: by.has(name),
-      builtIn: false,
-    }));
-    if (by.has(BUILT_IN))
-      out.push({ name: BUILT_IN, tools: by.get(BUILT_IN) ?? [], connected: true, builtIn: true });
-    return out;
-  }, [tools, servers]);
-
+  const tools = groups;
+  const all = groups ?? [];
+  const everyone = aliases ? aliases.split(",").length : 0;
   const q = query.trim().toLowerCase();
-  const shown = groups
+  const shown = all
     .map((g) => ({
       ...g,
       tools: q
@@ -64,10 +38,10 @@ export function Tools({ agents }: { agents: Agent[] }) {
         : g.tools,
     }))
     .filter((g) => !q || g.tools.length > 0);
-  const down = groups.filter((g) => !g.connected);
+  const down = all.filter((g) => !g.connected);
 
   return (
-    <Page title="Tools" subtitle="What the assistant can use, and where each tool comes from.">
+    <Page title="Tools" subtitle="What your agents can use, and where each tool comes from.">
       <div className="relative mt-5">
         <Search
           size={15}
@@ -117,6 +91,9 @@ export function Tools({ agents }: { agents: Agent[] }) {
                     {g.connected
                       ? `${g.tools.length} ${g.tools.length === 1 ? "tool" : "tools"}`
                       : "Not answering"}
+                    {g.connected && g.agents.length === 1 && everyone > 1 && (
+                      <> · only {g.agents.map(agentLabel).join(", ")}</>
+                    )}
                   </span>
                 </span>
                 <ChevronRight

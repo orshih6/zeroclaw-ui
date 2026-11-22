@@ -1,6 +1,7 @@
 import { ChevronRight, Image as ImageIcon, TriangleAlert } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { fileName, modelLabel } from "../lib/format";
+import { settleStreaming } from "../lib/markdown";
 import { readableText } from "../lib/protocol";
 import type { Item } from "../lib/types";
 import { CopyButton, Markdown } from "./Markdown";
@@ -25,12 +26,35 @@ export function Thinking({ text, live }: { text: string; live?: boolean }) {
   );
 }
 
-export function Dots() {
+/** "8 s", "1 min 20 s": how long the reader has been waiting. */
+export function waited(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`;
+}
+
+/**
+ * The turn is running and there is no text to show yet. ZeroClaw can take half a minute
+ * before its first word, so the dots say what is going on and, after a few seconds, for
+ * how long: a wait that is counted does not look like a page that is stuck.
+ */
+export function Working({ what, since }: { what: string; since: number | null }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const ms = since ? now - since : 0;
   return (
-    <div className="flex items-center gap-1.5 py-2" role="status" aria-label="Working">
-      <span className="dot" />
-      <span className="dot" />
-      <span className="dot" />
+    <div className="flex items-center gap-2.5 py-2 text-sm text-ink-3" role="status">
+      <span className="flex items-center gap-1.5" aria-hidden="true">
+        <span className="dot" />
+        <span className="dot" />
+        <span className="dot" />
+      </span>
+      <span>
+        {what}
+        {ms >= 4000 && <span className="tabular-nums"> · {waited(ms)}</span>}
+      </span>
     </div>
   );
 }
@@ -39,7 +63,7 @@ const answerClass = "font-serif text-[1.0625rem] leading-[1.7] text-ink";
 
 export function StreamingAnswer({ text }: { text: string }) {
   // While it streams, tool markup the model is writing must not flash by as text.
-  const readable = readableText(text);
+  const readable = settleStreaming(readableText(text));
   if (!readable) return null;
   return (
     <div className={answerClass}>

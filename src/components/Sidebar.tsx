@@ -6,6 +6,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Search,
   Send,
   Settings,
   Trash2,
@@ -14,6 +15,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { agentLabel, relativeDay } from "../lib/format";
+import { pickTitle } from "../lib/history";
 import type { Session } from "../lib/types";
 import { useBusyChats } from "../lib/useChat";
 import { Confirm, Skeleton, useDelayed } from "./ui";
@@ -201,8 +203,14 @@ const navClass = ({ isActive }: { isActive: boolean }) =>
 
 export function Sidebar(p: Props) {
   const busy = useBusyChats();
-  const { groups, channels } = useMemo(() => {
-    const sorted = [...p.sessions].sort((a, b) => b.last_activity.localeCompare(a.last_activity));
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const titleOf = (s: Session) => pickTitle(s.name, p.titles[s.session_id]) || fallbackTitle(s);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: titleOf reads p.titles, listed here
+  const { groups, channels, found } = useMemo(() => {
+    const sorted = [...p.sessions]
+      .filter((s) => !q || titleOf(s).toLowerCase().includes(q))
+      .sort((a, b) => b.last_activity.localeCompare(a.last_activity));
     const g = new Map<string, Session[]>();
     const ch: Session[] = [];
     for (const s of sorted) {
@@ -213,10 +221,9 @@ export function Sidebar(p: Props) {
       const key = relativeDay(s.last_activity);
       g.set(key, [...(g.get(key) ?? []), s]);
     }
-    return { groups: g, channels: ch };
-  }, [p.sessions]);
+    return { groups: g, channels: ch, found: sorted.length };
+  }, [p.sessions, p.titles, q]);
 
-  const titleOf = (s: Session) => s.name || p.titles[s.session_id] || fallbackTitle(s);
   const row = (s: Session) => (
     <Row
       key={s.session_id}
@@ -274,6 +281,25 @@ export function Sidebar(p: Props) {
         {!p.loading && !p.error && p.sessions.length === 0 && (
           <p className="px-3 py-4 text-sm text-ink-3">No chats yet. Start one above.</p>
         )}
+        {/* A short list is quicker to read than to search. */}
+        {p.sessions.length > 8 && (
+          <div className="relative mx-1 mt-2">
+            <Search
+              size={14}
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-3"
+            />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+              placeholder="Search chats"
+              aria-label="Search chats"
+              className="w-full rounded-lg border border-line bg-surface py-1.5 pl-8 pr-2 text-sm outline-none placeholder:text-ink-3 focus:border-accent"
+            />
+          </div>
+        )}
+        {q && found === 0 && <p className="px-3 py-4 text-sm text-ink-3">No chat is called that.</p>}
         {GROUPS.filter((g) => groups.has(g)).map((g) => (
           <section key={g} className="mt-4 first:mt-2">
             <h2 className="px-3 pb-1 text-xs text-ink-3">{g}</h2>

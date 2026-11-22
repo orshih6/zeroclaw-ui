@@ -1,4 +1,4 @@
-import { ChevronRight, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Pencil, Play, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Message } from "../components/Messages";
 import { ToolGroup } from "../components/ToolCard";
@@ -8,7 +8,7 @@ import { api } from "../lib/api";
 import { toBlocks } from "../lib/blocks";
 import { agentLabel, describeCron, duration, shortDate } from "../lib/format";
 import { parseTranscript } from "../lib/history";
-import type { Agent, Channel, CronJob, CronRun } from "../lib/types";
+import type { Agent, Channel, CronJob, CronRun, Item } from "../lib/types";
 
 const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
@@ -18,6 +18,28 @@ export function jobTitle(j: Pick<CronJob, "name" | "job_type" | "prompt" | "comm
   // The first sentence: up to a full stop, colon or line break that ends a phrase.
   const first = text.split(/[.:!?](?=\s)|\n/)[0].trim();
   return first.length > 70 ? `${first.slice(0, 69)}…` : first || "Untitled job";
+}
+
+/** "30 19 * * *" → "19:30"; anything less regular reads as describeCron has it. */
+function when(expr: string): string {
+  const [m, h] = expr.trim().split(/\s+/);
+  return /^\d+$/.test(m ?? "") && /^\d+$/.test(h ?? "")
+    ? `${h.padStart(2, "0")}:${m.padStart(2, "0")}`
+    : describeCron(expr);
+}
+
+/** Titles for a list of jobs: two jobs that would read the same also say when they run. */
+export function jobTitles(
+  jobs: Pick<CronJob, "id" | "name" | "job_type" | "prompt" | "command" | "expression" | "schedule">[],
+): Map<string, string> {
+  const count = new Map<string, number>();
+  for (const j of jobs) count.set(jobTitle(j), (count.get(jobTitle(j)) ?? 0) + 1);
+  return new Map(
+    jobs.map((j) => {
+      const t = jobTitle(j);
+      return [j.id, (count.get(t) ?? 0) > 1 ? `${t} · ${when(j.schedule?.expr ?? j.expression)}` : t];
+    }),
+  );
 }
 
 type Draft = {
@@ -190,7 +212,7 @@ const QUIET_TEXT = "Nothing new, so it sent no message.";
 
 /** What one run said, drawn like a chat answer: text as Markdown, tool calls folded. */
 function RunResult({ output }: { output: string | null }) {
-  const blocks = useMemo(() => toBlocks(parseTranscript(output ?? "")), [output]);
+  const blocks = useMemo(() => toBlocks(said(output ?? "")), [output]);
   if (QUIET.test(output ?? "")) return <p className="text-sm text-ink-2">{QUIET_TEXT}</p>;
   if (blocks.length === 0) return <p className="text-sm text-ink-3">It finished without saying anything.</p>;
   return (
@@ -210,14 +232,47 @@ function RunResult({ output }: { output: string | null }) {
 
 const NO_PREVIEWS = new Map<string, string>();
 
+/** What a run left, with a closing "NO_REPLY" (after other output) put in plain words. */
+function said(output: string): Item[] {
+  return parseTranscript(output).map((i) =>
+    i.kind === "assistant" && QUIET.test(i.text)
+      ? { id: i.id, kind: "notice", text: "It ended by answering that there was nothing new." }
+      : i,
+  );
+}
+
 /** The first sentence of what a run said, for the one-line list of earlier runs. */
 export function runPreview(output: string | null): string {
   if (!output?.trim()) return "";
   if (QUIET.test(output)) return "Nothing new";
-  const items = parseTranscript(output);
-  const said = items.findLast((i) => i.kind === "assistant");
-  if (said?.kind === "assistant") return firstLine(said.text);
-  return items.some((i) => i.kind === "tool") ? "Used its tools, wrote no summary" : "";
+  const items = said(output);
+  const last = items.findLast((i) => i.kind === "assistant");
+  if (last?.kind === "assistant") return firstLine(last.text);
+  if (items.some((i) => i.kind === "caution")) return UNRUN_TEXT;
+  return items.some((i) => i.kind === "tool") ? NO_SUMMARY_TEXT : "";
+}
+
+const UNRUN_TEXT = "Wrote its tool calls as text, so nothing was run";
+const NO_SUMMARY_TEXT = "Used its tools, wrote no summary";
+/** Words a run uses, in its first line, when it could not do its work. */
+const TROUBLE =
+  /\b(didn['’]t run|did not run|not run because|couldn['’]t|could not|cannot|can['’]t|failed|failure|unavailable|(?:aren['’]t|isn['’]t|not|wasn['’]t|weren['’]t) available|missing|blocked|refused|timed out|error)\b/i;
+
+/**
+ * Whether a run that ZeroClaw counts as "ok" still needs a look: it did nothing real, or it
+ * says in its own first line that it could not do the job. A guess from its words, so it
+ * is shown as a caution, never as a failure.
+ */
+export function runConcern(output: string | null): string | null {
+  if (!output?.trim() || QUIET.test(output)) return null;
+  const items = said(output);
+  const last = items.findLast((i) => i.kind === "assistant");
+  if (last?.kind !== "assistant") {
+    if (items.some((i) => i.kind === "caution")) return "Nothing was run";
+    return items.some((i) => i.kind === "tool") ? "No summary" : null;
+  }
+  if (items.some((i) => i.kind === "caution")) return "Part of it was never run";
+  return TROUBLE.test(firstLine(last.text)) ? "May need a look" : null;
 }
 
 function outcome(r: CronRun): { text: string; bad: boolean } {
@@ -357,6 +412,8 @@ export function Jobs({ agents }: { agents: Agent[] }) {
     }
   }
 
+  const titles = useMemo(() => jobTitles(jobs ?? []), [jobs]);
+
   function blank(): Draft {
     const channel = channels[0]?.name ?? "";
     const to = jobs?.find((j) => j.delivery.to)?.delivery.to ?? "";
@@ -414,6 +471,9 @@ export function Jobs({ agents }: { agents: Agent[] }) {
         {jobs?.map((j) => {
           const open = expanded === j.id;
           const shell = j.job_type !== "agent";
+          const failed = Boolean(j.last_run) && j.last_status !== "ok";
+          const concern = failed ? "Failed" : runConcern(j.last_output);
+          const preview = j.last_output ? runPreview(j.last_output) : "";
           return (
             <li key={j.id} className="rounded-2xl border border-line bg-surface">
               <div className="flex items-start gap-3 p-4">
@@ -440,15 +500,24 @@ export function Jobs({ agents }: { agents: Agent[] }) {
                 >
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate font-medium ${j.enabled ? "" : "text-ink-3"}`}>
-                      {jobTitle(j)}
+                      {titles.get(j.id)}
                     </span>
                     <span className="mt-0.5 block text-sm text-ink-2">
                       {describeCron(j.schedule.expr ?? j.expression)}
                       {j.schedule.tz ? ` · ${j.schedule.tz.split("/").pop()?.replace(/_/g, " ")} time` : ""}
                     </span>
-                    {j.last_output && runPreview(j.last_output) && (
-                      <span className="mt-1.5 block truncate text-sm text-ink">
-                        {runPreview(j.last_output)}
+                    {(preview || concern) && (
+                      <span className="mt-1.5 flex min-w-0 items-center gap-2 text-sm">
+                        {concern && (
+                          <span
+                            className={`inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium ${
+                              failed ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"
+                            }`}
+                          >
+                            <TriangleAlert size={12} /> {concern}
+                          </span>
+                        )}
+                        <span className="truncate text-ink">{preview}</span>
                       </span>
                     )}
                     <span className="mt-1 block text-xs text-ink-3">
